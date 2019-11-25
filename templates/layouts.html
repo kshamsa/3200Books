@@ -1,0 +1,45 @@
+<!--#layout.html-->
+
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="stylesheet" href="/static/content/bootstrap.min.css" />
+    <title>Quickstart</title>
+    <script src="/static/scripts/bootstrap.min.js">
+
+    </script>
+</head>
+<body>
+    <nav class="navbar">
+        <ul class="navbar-nav">
+            <li class="nav-item">
+                <a href="/">home</a>
+
+            </li>
+        </ul>
+        <ul class="navbar-nav">
+            <li class="nav-item">
+                <a href="/books">books</a>
+
+            </li>
+        </ul>
+        <ul class="navbar-nav">
+            <li class="nav-item">
+                <a href="/contacts">contact us</a>
+
+            </li>
+        </ul>
+        <ul class="navbar-nav">
+            <li class="nav-item">
+                <a href="/seedDB">SEED DB</a>
+
+            </li>
+        </ul>
+
+    </nav>
+    {% block content %}
+
+    {% endblock %}
+</body>
+</html>
