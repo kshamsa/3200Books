@@ -49,6 +49,7 @@ def contacts():
 
 if __name__ == '__main__':
     import os
+    app.run(debug=True)
     HOST = os.environ.get('SERVER_HOST', 'localhost')
     try:
         PORT = int(os.environ.get('SERVER_PORT', '5555'))
