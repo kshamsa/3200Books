@@ -1,0 +1,20 @@
+{% extends "layouts.html" %}
+{% block content %}
+
+<div class="row">
+    <div class="col-md-12">
+        {% for book in books %}
+            <div class="card adjust-height p-3">
+                <div class="card-content well">
+                    <div class="content">
+                        <h2>{{ book['title']}}</h2>
+                        <h4>{{ book['author']}}</h4>
+                        <h6>{{ book['description']}}</h6>
+                    </div>
+                </div>
+            </div>
+
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
