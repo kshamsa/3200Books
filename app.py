@@ -9,7 +9,7 @@ app = Flask(__name__)
 #wsgi_app = app.wsgi_app
 
 #PATH = 'db/books.sqlite'
-PATH = '/home/kionshamsa/books/3200Books/books.sqlite'
+PATH = '/home/kionshamsa/books/3200Books/db/books.sqlite'
 
 #g creates the connection
 def open_connection():
