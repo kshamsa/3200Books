@@ -1,101 +1,170 @@
-#app.py 
-import sqlite3
-from flask import Flask, render_template, g, request
+# This file contains an example Flask-User application.
+# To keep the example simple, we are applying some unusual techniques:
+# - Placing everything in one file
+# - Using class-based configuration (instead of file-based configuration)
+# - Using string-based templates (instead of file-based templates)
+#6:13, 10:10, 12:00 - forms?
 
-from flask import Flask
-app = Flask(__name__)
+import datetime
+from flask import Flask, request, render_template_string
+from flask_babelex import Babel
+from flask_sqlalchemy import SQLAlchemy
+from flask_user import current_user, login_required, roles_required, UserManager, UserMixin
 
-# Make the WSGI interface available at the top level so wfastcgi can get it.
-#wsgi_app = app.wsgi_app
+# Class-based application configuration 
+class ConfigClass(object):
+    """ Flask application config """
 
-PATH = 'db/books.sqlite'
-#PATH = '/home/kionshamsa/books/3200Books/db/books.sqlite'
+    # Flask settings
+    SECRET_KEY = 'This is an INSECURE secret!! DO NOT use this in production!!'
 
-#g creates the connection
-def open_connection():
-    connection = getattr(g, '_connection', None)
-    if connection == None:
-        connection = g._connection = sqlite3.connect(PATH)
-    connection.row_factory = sqlite3.Row
-    return connection
+    # Flask-SQLAlchemy settings
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///basic_app.sqlite'    # File-based SQL database
+    SQLALCHEMY_TRACK_MODIFICATIONS = False    # Avoids SQLAlchemy warning
 
-def execute_sql(sql, values=(), commit=False, single=False):
-    connection = open_connection()
-    cursor = connection.execute(sql,values)
-    if commit == True:
-        results = connection.commit()
-    else:
-        results = cursor.fetchone() if single else cursor.fetchall()
+    # Flask-Mail SMTP server settings
+    MAIL_SERVER = 'smtp.gmail.com'
+    MAIL_PORT = 465
+    MAIL_USE_SSL = True
+    MAIL_USE_TLS = False
+    MAIL_USERNAME = 'kshamsadashboard@gmail.com'
+    MAIL_PASSWORD = 'YC7l*Yx4xL'
+    MAIL_DEFAULT_SENDER = '"Kion''s Dashboard" <noreply@gmail.com>'
 
-    cursor.close()
-    return results
+    # Flask-User settings
+    USER_APP_NAME = "Flask-User Basic App"      # Shown in and email templates and page footers
+    USER_ENABLE_EMAIL = True        # Enable email authentication
+    USER_ENABLE_USERNAME = False    # Disable username authentication
+    USER_EMAIL_SENDER_NAME = USER_APP_NAME
+    USER_EMAIL_SENDER_EMAIL = "noreply@example.com"
 
-@app.teardown_appcontext
-def close_connection(exception):
-    connection = getattr(g, '_connection', None)
-    if connection is not None:
-        connection.close()
+def create_app():
+    """ Flask application factory """
+    
+    # Create Flask app load app.config
+    app = Flask(__name__)
+    app.config.from_object(__name__+'.ConfigClass')
 
+    # Initialize Flask-BabelEx
+    babel = Babel(app)
 
-@app.route('/')
-def home():
-    jobs = execute_sql('')
-    return render_template('index.html')
+    # Initialize Flask-SQLAlchemy
+    db = SQLAlchemy(app)
 
-@app.route('/books')
-def books():
-    return render_template('books.html')
+    # Define the User data-model.
+    # NB: Make sure to add flask_user UserMixin !!!
+    class User(db.Model, UserMixin):
+        __tablename__ = 'users'
+        id = db.Column(db.Integer, primary_key=True)
+        active = db.Column('is_active', db.Boolean(), nullable=False, server_default='1')
 
-@app.route('/contacts')
-def contacts():
-    return render_template('contacts.html')
+        # User authentication information. The collation='NOCASE' is required
+        # to search case insensitively when USER_IFIND_MODE is 'nocase_collation'.
+        email = db.Column(db.String(255, collation='NOCASE'), nullable=False, unique=True)
+        email_confirmed_at = db.Column(db.DateTime())
+        password = db.Column(db.String(255), nullable=False, server_default='')
 
-@app.route("/seedDB")
-def seedDB():
-    sqlQ = execute_sql('DROP TABLE IF EXISTS Book', commit=True)
+        # User information
+        first_name = db.Column(db.String(100, collation='NOCASE'), nullable=False, server_default='')
+        last_name = db.Column(db.String(100, collation='NOCASE'), nullable=False, server_default='')
 
-    sqlQuery = execute_sql('CREATE TABLE Book (author TEXT, title TEXT, description TEXT)', commit=True)
+        # Define the relationship to Role via UserRoles
+        roles = db.relationship('Role', secondary='user_roles')
 
-    sqlQuery2 = execute_sql('INSERT INTO Book (author,title, description) VALUES ("Mary Shelly","Frankenstein", "A horror story written by a romantic")', commit=True)
-    sqlQuery2 = execute_sql('INSERT INTO Book (author,title, description) VALUES ("Henry James","The Turn of the Screw", "A Comedy story")', commit=True)
-    sqlQuery2 = execute_sql('INSERT INTO Book (author,title, description) VALUES ("Max Weber","The protestant Work Ethic and The Spirit of C", "A Love story")',commit=True)
-    sqlQuery2 = execute_sql('INSERT INTO Book (author,title, description) VALUES ("Robert Putnam","Bowling Alone", "A War story")', commit=True)
+    # Define the Role data-model
+    class Role(db.Model):
+        __tablename__ = 'roles'
+        id = db.Column(db.Integer(), primary_key=True)
+        name = db.Column(db.String(50), unique=True)
 
-    booksQuery = execute_sql('SELECT rowid, * FROM Book')
-    for book in booksQuery:
-        print(book['rowid'])
-        print(book['author'])
+    # Define the UserRoles association table
+    class UserRoles(db.Model):
+        __tablename__ = 'user_roles'
+        id = db.Column(db.Integer(), primary_key=True)
+        user_id = db.Column(db.Integer(), db.ForeignKey('users.id', ondelete='CASCADE'))
+        role_id = db.Column(db.Integer(), db.ForeignKey('roles.id', ondelete='CASCADE'))
 
-    return '<h1>DB Seeded!</h1>'
+    # Setup Flask-User and specify the User data-model
+    user_manager = UserManager(app, db, User)
 
-@app.route('/erase_DB')
-def eraseDB():
-    sqlQ = execute_sql('DELETE FROM Book',commit=True)
-    return '<h1>DB Erased!</h1>'
+    # Create all database tables
+    db.create_all()
 
-@app.route('/all_books')
-def all_books():
-    books = execute_sql('SELECT * FROM Book')
-    return render_template('all_books.html', books=books)
+    # Create 'member@example.com' user with no roles
+    if not User.query.filter(User.email == 'member@example.com').first():
+        user = User(
+            email='member@example.com',
+            email_confirmed_at=datetime.datetime.utcnow(),
+            password=user_manager.hash_password('Password1'),
+        )
+        db.session.add(user)
+        db.session.commit()
 
-@app.route('/add_book', methods={'GET', 'POST'})
-def addbook():
-    if request.method == 'POST':
-        author = request.form['author']
-        title = request.form['title']
-        description = request.form['description']
+    # Create 'admin@example.com' user with 'Admin' and 'Agent' roles
+    if not User.query.filter(User.email == 'admin@example.com').first():
+        user = User(
+            email='admin@example.com',
+            email_confirmed_at=datetime.datetime.utcnow(),
+            password=user_manager.hash_password('Password1'),
+        )
+        user.roles.append(Role(name='Admin'))
+        user.roles.append(Role(name='Agent'))
+        db.session.add(user)
+        db.session.commit()
 
-        returnStatus = execute_sql('INSERT INTO Book (author, title, description) VALUES (?, ?, ?)', (author, title, description),commit=True)
+    # The Home page is accessible to anyone
+    @app.route('/')
+    def home_page():
+        return render_template_string("""
+                {% extends "flask_user_layout.html" %}
+                {% block content %}
+                    <h2>{%trans%}Home page{%endtrans%}</h2>
+                    <p><a href={{ url_for('user.register') }}>{%trans%}Register{%endtrans%}</a></p>
+                    <p><a href={{ url_for('user.login') }}>{%trans%}Sign in{%endtrans%}</a></p>
+                    <p><a href={{ url_for('home_page') }}>{%trans%}Home Page{%endtrans%}</a> (accessible to anyone)</p>
+                    <p><a href={{ url_for('member_page') }}>{%trans%}Member Page{%endtrans%}</a> (login_required: member@example.com / Password1)</p>
+                    <p><a href={{ url_for('admin_page') }}>{%trans%}Admin Page{%endtrans%}</a> (role_required: admin@example.com / Password1')</p>
+                    <p><a href={{ url_for('user.logout') }}>{%trans%}Sign out{%endtrans%}</a></p>
+                {% endblock %}
+                """)
 
-        return render_template('add_book.html', book_title=title)
-    return render_template('add_book.html', book_title="")
+    # The Members page is only accessible to authenticated users
+    @app.route('/members')
+    @login_required    # Use of @login_required decorator
+    def member_page():
+        return render_template_string("""
+                {% extends "flask_user_layout.html" %}
+                {% block content %}
+                    <h2>{%trans%}Members page{%endtrans%}</h2>
+                    <p><a href={{ url_for('user.register') }}>{%trans%}Register{%endtrans%}</a></p>
+                    <p><a href={{ url_for('user.login') }}>{%trans%}Sign in{%endtrans%}</a></p>
+                    <p><a href={{ url_for('home_page') }}>{%trans%}Home Page{%endtrans%}</a> (accessible to anyone)</p>
+                    <p><a href={{ url_for('member_page') }}>{%trans%}Member Page{%endtrans%}</a> (login_required: member@example.com / Password1)</p>
+                    <p><a href={{ url_for('admin_page') }}>{%trans%}Admin Page{%endtrans%}</a> (role_required: admin@example.com / Password1')</p>
+                    <p><a href={{ url_for('user.logout') }}>{%trans%}Sign out{%endtrans%}</a></p>
+                {% endblock %}
+                """)
 
+    # The Admin page requires an 'Admin' role.
+    @app.route('/admin')
+    @roles_required('Admin')    # Use of @roles_required decorator
+    def admin_page():
+        return render_template_string("""
+                {% extends "flask_user_layout.html" %}
+                {% block content %}
+                    <h2>{%trans%}Admin Page{%endtrans%}</h2>
+                    <p><a href={{ url_for('user.register') }}>{%trans%}Register{%endtrans%}</a></p>
+                    <p><a href={{ url_for('user.login') }}>{%trans%}Sign in{%endtrans%}</a></p>
+                    <p><a href={{ url_for('home_page') }}>{%trans%}Home Page{%endtrans%}</a> (accessible to anyone)</p>
+                    <p><a href={{ url_for('member_page') }}>{%trans%}Member Page{%endtrans%}</a> (login_required: member@example.com / Password1)</p>
+                    <p><a href={{ url_for('admin_page') }}>{%trans%}Admin Page{%endtrans%}</a> (role_required: admin@example.com / Password1')</p>
+                    <p><a href={{ url_for('user.logout') }}>{%trans%}Sign out{%endtrans%}</a></p>
+                {% endblock %}
+                """)
+
+    return app
+
+# Start development web server
 if __name__ == '__main__':
-    import os
-    app.run(debug=True)
-    HOST = os.environ.get('SERVER_HOST', 'localhost')
-    try:
-        PORT = int(os.environ.get('SERVER_PORT', '5555'))
-    except ValueError:
-        PORT = 5555
-    app.run(HOST, PORT)
+    app = create_app()
+    app.run(host='0.0.0.0', port=5000, debug=True)
