@@ -17,7 +17,8 @@ class ConfigClass(object):
 
     # Flask settings
     SECRET_KEY = 'This is an INSECURE secret!! DO NOT use this in production!!'
-
+    project_home = u'/home/kionshamsa/flask_project/BooksSiteForRealThisTime/BooksSite/BooksSite/
+    
     # Flask-SQLAlchemy settings
     SQLALCHEMY_DATABASE_URI = 'sqlite:///basic_app.sqlite'    # File-based SQL database
     SQLALCHEMY_TRACK_MODIFICATIONS = False    # Avoids SQLAlchemy warning
